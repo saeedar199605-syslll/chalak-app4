@@ -100,7 +100,7 @@ export async function onRequestPost({ request, env, data }: Context): Promise<Re
 
   const username = normalizeUsername(body.username);
   const password = typeof body.password === 'string' ? body.password.trim() : '';
-  const minimumLength = username === 'admin' ? 12 : 8;
+  const minimumLength = 8;
   if (!username || password.length < minimumLength || password.length > 256) {
     return jsonResponse({ error: `کلمه عبور باید بین ${minimumLength} تا ۲۵۶ نویسه باشد.` }, 400);
   }

@@ -113,6 +113,14 @@ export async function onRequestPost({ request, env, data }: Context): Promise<Re
   if (Object.keys(changes).length === 0) return jsonResponse({ error: 'No synchronized changes were supplied.' }, 400);
 
   const { state: current, meta: currentMeta } = await readState(env);
+  const baseRevision = Number(body.baseRevision);
+  if (!Number.isInteger(baseRevision) || baseRevision !== currentMeta.revision) {
+    return jsonResponse({
+      error: 'داده ابری در مرورگر دیگری تغییر کرده است؛ آخرین نسخه دریافت و ذخیره دوباره انجام شود.',
+      revision: currentMeta.revision,
+      updatedAt: currentMeta.updatedAt,
+    }, 409);
+  }
   const next = mergeAuthorizedState(current, changes, data.session);
   const meta: StateMeta = {
     revision: currentMeta.revision + 1,

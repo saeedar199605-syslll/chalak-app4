@@ -38,6 +38,12 @@ export async function onRequestPost({ request, env }: Context): Promise<Response
   const username = normalizeUsername(body.username);
   const password = typeof body.password === 'string' ? body.password : '';
   if (!username || !password || password.length > 256) return jsonResponse({ error: 'نام کاربری یا کلمه عبور نامعتبر است.' }, 401);
+  const clientAddress = (request.headers.get('CF-Connecting-IP') || 'unknown').replace(/[^a-fA-F0-9:.-]/g, '').slice(0, 64);
+  const loginRateKey = `rate:login:${clientAddress}:${username}`;
+  const failedAttempts = Number(await env.CHALAK_DB.get(loginRateKey) || '0');
+  if (failedAttempts >= 10) {
+    return jsonResponse({ error: 'تلاش‌های ورود بیش از حد مجاز است؛ ده دقیقه دیگر دوباره تلاش کنید.' }, 429, { 'Retry-After': '600' });
+  }
 
   let employee: EmployeeRecord | undefined;
   let valid = false;
@@ -61,7 +67,11 @@ export async function onRequestPost({ request, env }: Context): Promise<Response
     }
   }
 
-  if (!valid || !employee) return jsonResponse({ error: 'نام کاربری یا کلمه عبور نامعتبر است.' }, 401);
+  if (!valid || !employee) {
+    await env.CHALAK_DB.put(loginRateKey, String(failedAttempts + 1), { expirationTtl: 600 });
+    return jsonResponse({ error: 'نام کاربری یا کلمه عبور نامعتبر است.' }, 401);
+  }
+  await env.CHALAK_DB.delete(loginRateKey);
   const normalizedEmployeeUsername = normalizeUsername(employee.username);
   const authVersion = Number(await env.CHALAK_DB.get(`credential_version:${normalizedEmployeeUsername}`) || '0');
   const token = createSessionToken();

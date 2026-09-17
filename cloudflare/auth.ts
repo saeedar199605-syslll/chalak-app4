@@ -70,6 +70,17 @@ export async function readSession(request: Request, env: CloudflareEnv): Promise
       await env.CHALAK_DB.delete(`session:${token}`);
       return null;
     }
+    if (session.username !== 'admin') {
+      const rawState = await env.CHALAK_DB.get('app_state');
+      const state = rawState ? JSON.parse(rawState) as Record<string, unknown> : {};
+      const employees = Array.isArray(state.pe_employees) ? state.pe_employees as Array<Record<string, unknown>> : [];
+      const employee = employees.find(item => String(item.id) === session.id && normalizeUsername(item.username) === session.username);
+      const lockedUsers = Array.isArray(state.pe_locked_users) ? state.pe_locked_users.map(String) : [];
+      if (!employee || employee.role !== session.role || lockedUsers.includes(session.id) || lockedUsers.includes(session.username)) {
+        await env.CHALAK_DB.delete(`session:${token}`);
+        return null;
+      }
+    }
     return session;
   } catch {
     await env.CHALAK_DB.delete(`session:${token}`);
