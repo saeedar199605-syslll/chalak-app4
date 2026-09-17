@@ -660,7 +660,7 @@ class AppDatabase {
 
     this.pollTimer = setInterval(() => {
       this.runSyncCycle('auto').catch(() => {});
-    }, 2500);
+    }, 1500);
   }
 
   public stopCloudSync(): void {
@@ -798,12 +798,38 @@ class AppDatabase {
     return (await this.runSyncCycle('auto')) === true;
   }
 
+  /** Flush local edits first, then explicitly request and apply the latest cloud revision. */
+  public async refreshFromCloudNow(): Promise<boolean> {
+    clearTimeout(this.syncTimeout);
+    if (!this.cloudSyncEnabled) {
+      this.emitCloudStatus('error', 'ابتدا باید با حساب معتبر وارد سامانه شوید.');
+      return false;
+    }
+    if (this.isSyncing) return false;
+    // Include any legacy/direct storage mutation that occurred since the last
+    // successful sync before deciding whether it is safe to pull.
+    this.detectDirectStorageChanges();
+    if (this.dirtyKeys.size > 0) {
+      const pushed = await this.runSyncCycle('push');
+      if (pushed !== true) return false;
+    }
+    return (await this.runSyncCycle('pull')) === true;
+  }
+
+  /** Remove only server-rehydratable shared data after sign-out; preferences remain local. */
+  public clearAuthorizedCache(): void {
+    this.stopCloudSync();
+    for (const key of CLOUD_SYNC_KEYS) localStorage.removeItem(key);
+    this.lastSyncedValues.clear();
+    this.dirtyKeys.clear();
+  }
+
   public async pushStateToCloud(): Promise<boolean> {
     if (!this.cloudSyncEnabled) return false;
     return (await this.runSyncCycle('push')) === true;
   }
 
-  private async pushStateToCloudInternal(forceAll: boolean): Promise<boolean> {
+  private async pushStateToCloudInternal(forceAll: boolean, allowConflictRetry = true): Promise<boolean> {
     try {
       this.detectDirectStorageChanges();
       if (forceAll) {
@@ -855,6 +881,13 @@ class AppDatabase {
         : {};
       if (!res.ok) {
         if (res.status === 401) window.dispatchEvent(new Event('pe_auth_expired'));
+        if (res.status === 409 && allowConflictRetry) {
+          // Keep the local dirty values intact. Pulling and retrying the same
+          // whole-key payload could silently overwrite another client's edit.
+          this.cloudRevision = Number.isInteger(result.revision) ? Number(result.revision) : this.cloudRevision;
+          this.emitCloudStatus('error', 'داده ابری در مرورگر دیگری تغییر کرده است. تغییر محلی حذف نشد؛ پیش از ادامه تعارض را بررسی کنید.');
+          return false;
+        }
         this.emitCloudStatus('error', result.error || `ذخیره ابری ناموفق بود (${res.status}).`);
         return false;
       }

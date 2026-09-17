@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Shield, Activity, UsersRound,  createPortal } from 'react-dom';
+import { createPortal } from 'react-dom';
 import { validateEmployeeInput } from '../utils/validation';
 import { db, CURRENT_ACTIVE_PERIOD } from '../utils/db';
 import { 
@@ -40,8 +40,8 @@ interface EmployeesProps {
   onAddEmployee: (emp: Omit<Employee, 'id'>) => void;
   onUpdateEmployee: (id: string, emp: Omit<Employee, 'id'>) => void;
   onBulkUpdateEmployees?: (employees: Employee[]) => void;
-  onDeleteEmployee: (id: string) => void;
-  onBulkDeleteEmployees?: (ids: string[]) => void;
+  onDeleteEmployee: (id: string) => boolean | Promise<boolean>;
+  onBulkDeleteEmployees?: (ids: string[]) => boolean | Promise<boolean>;
   onStartEvaluation: (empId: string) => void;
   theme?: 'dark' | 'light';
 }
@@ -97,6 +97,8 @@ export default function Employees({
   const [isExchangeModalOpen, setIsExchangeModalOpen] = useState(false);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
   const [deleteToast, setDeleteToast] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Bulk Selection State for Batch Actions
   const [selectedEmpIds, setSelectedEmpIds] = useState<Set<string>>(new Set());
@@ -178,18 +180,25 @@ export default function Employees({
     setSelectedEmpIds(next);
   };
 
-  const handleConfirmBulkDelete = () => {
+  const handleConfirmBulkDelete = async () => {
     if (selectedEmpIds.size === 0) return;
     const count = selectedEmpIds.size;
-    if (onBulkDeleteEmployees) {
-      onBulkDeleteEmployees(Array.from(selectedEmpIds));
-    } else {
-      selectedEmpIds.forEach(id => onDeleteEmployee(id));
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const succeeded = onBulkDeleteEmployees
+        ? await onBulkDeleteEmployees(Array.from(selectedEmpIds))
+        : (await Promise.all(Array.from(selectedEmpIds).map((id: string) => onDeleteEmployee(id)))).every(Boolean);
+      if (!succeeded) throw new Error('حذف گروهی کامل نشد. لطفاً اتصال و دسترسی خود را بررسی کنید.');
+      setSelectedEmpIds(new Set());
+      setIsBulkDeleteModalOpen(false);
+      setDeleteToast(`تعداد ${count} پرونده پرسنلی با موفقیت به صورت گروهی حذف شدند.`);
+      setTimeout(() => setDeleteToast(null), 4000);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'حذف گروهی با خطا روبه‌رو شد.');
+    } finally {
+      setIsDeleting(false);
     }
-    setSelectedEmpIds(new Set());
-    setIsBulkDeleteModalOpen(false);
-    setDeleteToast(`تعداد ${count} پرونده پرسنلی با موفقیت به صورت گروهی حذف شدند.`);
-    setTimeout(() => setDeleteToast(null), 4000);
   };
 
   // Bulk Import State (Legacy quick modal)
@@ -420,13 +429,8 @@ export default function Employees({
 
       const totalSuccess = createdCount + updatedCount;
       if (totalSuccess > 0) {
-        // Immediate persistence to localStorage and DB
+        // Persist through the database service so cloud dirty tracking is immediate.
         db.saveEmployees(workingEmployees);
-        try {
-          localStorage.setItem('pe_employees', JSON.stringify(workingEmployees));
-        } catch {
-          // Ignore
-        }
 
         // Automatically create evaluation shells for new employees so they are immediately visible
         if (newEmployeesForEval.length > 0) {
@@ -467,7 +471,6 @@ export default function Employees({
 
             if (evalsAdded) {
               db.saveEvaluations(newEvals);
-              localStorage.setItem('pe_evaluations', JSON.stringify(newEvals));
             }
           } catch (e) {
             console.warn('Auto evaluation creation for imported employees failed:', e);
@@ -1435,7 +1438,7 @@ export default function Employees({
             <div className="flex items-start gap-2 bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl text-xs text-rose-300 leading-relaxed">
               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
               <span>
-                توجه: با حذف پرونده همکار، تمامی ارزیابی‌ها، خودارزیابی‌ها و اهداف کارگاهی مرتبط با ایشان به صورت خودکار از سیستم پاکسازی خواهند شد.
+                توجه: با حذف پرونده همکار، ارزیابی‌ها و خودارزیابی‌های وابسته به همان پرونده نیز حذف می‌شوند. سایر سوابق سازمانی بدون اقدام جداگانه حذف نخواهند شد.
               </span>
             </div>
 
@@ -1449,19 +1452,30 @@ export default function Employees({
               </button>
               <button
                 type="button"
-                onClick={() => {
+                disabled={isDeleting}
+                onClick={async () => {
                   const empName = employeeToDelete.name;
-                  onDeleteEmployee(employeeToDelete.id);
-                  setEmployeeToDelete(null);
-                  setDeleteToast(`پرونده پرسنلی «${empName}» با موفقیت از سیستم حذف شد.`);
-                  setTimeout(() => setDeleteToast(null), 3500);
+                  setIsDeleting(true);
+                  setDeleteError(null);
+                  try {
+                    const succeeded = await onDeleteEmployee(employeeToDelete.id);
+                    if (!succeeded) throw new Error('حذف پرونده انجام نشد. لطفاً اتصال و سطح دسترسی را بررسی کنید.');
+                    setEmployeeToDelete(null);
+                    setDeleteToast(`پرونده پرسنلی «${empName}» با موفقیت از سیستم حذف شد.`);
+                    setTimeout(() => setDeleteToast(null), 3500);
+                  } catch (error) {
+                    setDeleteError(error instanceof Error ? error.message : 'حذف پرونده با خطا روبه‌رو شد.');
+                  } finally {
+                    setIsDeleting(false);
+                  }
                 }}
-                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-all cursor-pointer shadow-lg shadow-rose-600/20 flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-60 transition-all cursor-pointer shadow-lg shadow-rose-600/20 flex items-center gap-1.5"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>بله، حذف پرونده</span>
+                <span>{isDeleting ? 'در حال حذف…' : 'بله، حذف پرونده'}</span>
               </button>
             </div>
+            {deleteError && <div role="alert" className="text-xs text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl p-3">{deleteError}</div>}
           </div>
         </div>,
         document.body

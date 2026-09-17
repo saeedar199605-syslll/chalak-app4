@@ -150,7 +150,7 @@ export default function ExcelIntegrationCenter({
         details,
         type
       };
-      localStorage.setItem('pe_system_logs', JSON.stringify([newLog, ...logs.slice(0, 199)]));
+      db.saveMiscData('pe_system_logs', [newLog, ...logs.slice(0, 199)]);
     } catch {
       // Ignore
     }
@@ -453,11 +453,6 @@ export default function ExcelIntegrationCenter({
 
     // Multi-layer immediate persistence
     db.saveEvaluations(updatedEvaluations);
-    try {
-      localStorage.setItem('pe_evaluations', JSON.stringify(updatedEvaluations));
-    } catch {
-      // Ignore storage error
-    }
     onUpdateEvaluations(updatedEvaluations);
 
     // Validation Report
@@ -660,11 +655,6 @@ export default function ExcelIntegrationCenter({
 
     // Immediate multi-layer persistence
     db.saveEvaluations(updatedEvaluations);
-    try {
-      localStorage.setItem('pe_evaluations', JSON.stringify(updatedEvaluations));
-    } catch {
-      // Ignore
-    }
     onUpdateEvaluations(updatedEvaluations);
 
     const totalProcessed = newEvalsCount + updatedEvalsCount;
@@ -898,11 +888,6 @@ export default function ExcelIntegrationCenter({
 
     // Immediate multi-layer persistence
     db.saveEvaluations(updatedEvaluations);
-    try {
-      localStorage.setItem('pe_evaluations', JSON.stringify(updatedEvaluations));
-    } catch {
-      // Ignore
-    }
     onUpdateEvaluations(updatedEvaluations);
 
     const totalProcessed = newEvalsCount + updatedEvalsCount;

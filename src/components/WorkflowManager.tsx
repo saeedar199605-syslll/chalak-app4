@@ -946,7 +946,7 @@ export default function WorkflowManager({
       return item;
     });
 
-    localStorage.setItem('pe_employees', JSON.stringify(updatedList));
+    db.saveEmployees(updatedList);
     if (onUpdateEmployees) {
       onUpdateEmployees(updatedList);
     }
@@ -2154,7 +2154,7 @@ export default function WorkflowManager({
                               const updatedEmp = { ...emp, supervisorId: e.target.value || undefined };
                               const stored = JSON.parse(localStorage.getItem('pe_employees') || '[]');
                               const updatedList = stored.map((item: Employee) => item.id === emp.id ? updatedEmp : item);
-                              localStorage.setItem('pe_employees', JSON.stringify(updatedList));
+                              db.saveEmployees(updatedList);
                               if (onUpdateEmployees) onUpdateEmployees(updatedList);
                             }}
                             className="bg-slate-950 border border-slate-800 text-xs text-teal-300 rounded-xl px-3 py-1.5 focus:outline-none focus:border-teal-500 w-full max-w-xs"
@@ -2173,7 +2173,7 @@ export default function WorkflowManager({
                               const updatedEmp = { ...emp, peerReviewerId: e.target.value || undefined };
                               const stored = JSON.parse(localStorage.getItem('pe_employees') || '[]');
                               const updatedList = stored.map((item: Employee) => item.id === emp.id ? updatedEmp : item);
-                              localStorage.setItem('pe_employees', JSON.stringify(updatedList));
+                              db.saveEmployees(updatedList);
                               if (onUpdateEmployees) onUpdateEmployees(updatedList);
                             }}
                             className="bg-slate-950 border border-slate-800 text-xs text-cyan-300 rounded-xl px-3 py-1.5 focus:outline-none focus:border-cyan-500 w-full max-w-xs"
@@ -2192,7 +2192,7 @@ export default function WorkflowManager({
                               const updatedEmp = { ...emp, approverId: e.target.value || undefined };
                               const stored = JSON.parse(localStorage.getItem('pe_employees') || '[]');
                               const updatedList = stored.map((item: Employee) => item.id === emp.id ? updatedEmp : item);
-                              localStorage.setItem('pe_employees', JSON.stringify(updatedList));
+                              db.saveEmployees(updatedList);
                               if (onUpdateEmployees) onUpdateEmployees(updatedList);
                             }}
                             className="bg-slate-950 border border-slate-800 text-xs text-indigo-300 rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 w-full max-w-xs"

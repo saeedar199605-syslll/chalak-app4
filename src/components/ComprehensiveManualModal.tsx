@@ -207,7 +207,7 @@ export default function ComprehensiveManualModal({
   const handleDownloadMarkdown = () => {
     if (!canDownload) return;
     const markdownContent = `# کتابچه راهنما و دستورالعمل جامع کاربری سامانه ارزیابی عملکرد و مربیگری شرکت اصفهان چالاک
-نسخه: ۱.۴ (ویرایش سازمانی ۱۴۰۳)
+نسخه: ۲.۱ (ویرایش تولیدی ۱۴۰۵)
 تهیه و تدوین: واحد سرمایه انسانی و توسعه سازمانی
 کاربر دریافت‌کننده: ${currentUser?.name || 'کاربر سازمانی'} (${currentUser?.code || '-'})
 تاریخ دریافت: ${new Date().toLocaleDateString('fa-IR')}
@@ -610,9 +610,9 @@ export default function ComprehensiveManualModal({
             </div>
 
             <div className="text-left text-xs text-slate-500 border-r-2 sm:border-r-0 sm:border-l-2 border-teal-500/30 pr-3 sm:pr-0 sm:pl-3 space-y-1">
-              <p><strong className="text-slate-800">کد سند:</strong> SOP-HR-EVAL-1403</p>
-              <p><strong className="text-slate-800">نسخه سیستم:</strong> 1.4.0 (Enterprise)</p>
-              <p><strong className="text-slate-800">تاریخ تدوین:</strong> شهریور ۱۴۰۳</p>
+              <p><strong className="text-slate-800">کد سند:</strong> SOP-HR-EVAL-1405</p>
+              <p><strong className="text-slate-800">نسخه سیستم:</strong> 2.1</p>
+              <p><strong className="text-slate-800">تاریخ بازبینی:</strong> ۲۵ شهریور ۱۴۰۵</p>
               <p><strong className="text-slate-800">وضعیت:</strong> مصوب و لازم‌الاجرا</p>
             </div>
           </div>
@@ -1094,7 +1094,17 @@ export default function ComprehensiveManualModal({
           <div className="space-y-3 text-xs text-slate-700">
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
               <h5 className="font-bold text-slate-900">سؤال: اگر رمز عبور خود را فراموش کنم چه باید کرد؟</h5>
-              <p className="mt-1 text-slate-600">پاسخ: کافی است به مدیر منابع انسانی اطلاع دهید. مدیر می‌تواند در تب «مرکز مدیریت و امنیت» رمز شما را بازنشانی یا مشاهده کند.</p>
+              <p className="mt-1 text-slate-600">پاسخ: به مدیر منابع انسانی اطلاع دهید. مدیر می‌تواند در «مرکز مدیریت و امنیت» یک کلمه عبور جدید تنظیم کند؛ کلمه عبور قبلی قابل مشاهده یا بازیابی نیست.</p>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <h5 className="font-bold text-slate-900">سؤال: چگونه آخرین تغییرات ثبت‌شده در مرورگر دیگر را دریافت کنم؟</h5>
+              <p className="mt-1 text-slate-600">پاسخ: از دکمه «تازه‌سازی / همگام» در نوار بالای سامانه استفاده کنید. سامانه ابتدا تغییرات ذخیره‌نشده محلی را با ایمنی ارسال و سپس آخرین نسخه مجاز ابری را دریافت می‌کند؛ صفحه جاری تغییر نمی‌کند.</p>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <h5 className="font-bold text-slate-900">نکته امنیتی کلمه عبور</h5>
+              <p className="mt-1 text-slate-600">کلمه عبور باید حداقل ۸ کاراکتر باشد. آن را در پیام عمومی، گزارش یا فایل مشترک ثبت نکنید و پس از دریافت رمز تولیدشده، در نگهداری آن دقت کنید.</p>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
@@ -1132,7 +1142,7 @@ export default function ComprehensiveManualModal({
           </div>
 
           <div className="text-center text-[10px] text-slate-400 border-t border-slate-200 pt-3">
-            صفحه رسمی دستورالعمل و راهنمای جامع | سامانه ارزیابی عملکرد و مربیگری اصفهان چالاک ۱۴۰۳
+            صفحه رسمی دستورالعمل و راهنمای جامع | سامانه ارزیابی عملکرد و مربیگری اصفهان چالاک ۱۴۰۵
           </div>
         </footer>
 

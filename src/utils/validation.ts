@@ -297,7 +297,7 @@ export function validateEvaluationInput(data: unknown): ValidationResult<Partial
 export const AdminPasswordSchema = z.object({
   currentPassword: z.string().min(1, 'کلمه عبور فعلی الزامی است.'),
   newPassword: z.string()
-    .min(12, 'کلمه عبور جدید مدیریت باید حداقل ۱۲ کاراکتر باشد.')
+    .min(8, 'کلمه عبور جدید مدیریت باید حداقل ۸ کاراکتر باشد.')
     .max(100, 'کلمه عبور بیش از حد طولانی است.')
     .refine(val => !val.includes(' '), 'کلمه عبور نباید حاوی فاصله خالی باشد.'),
   confirmPassword: z.string().min(1, 'تکرار کلمه عبور جدید الزامی است.')

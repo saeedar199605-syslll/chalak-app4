@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Employee, UserRole } from '../types';
 import InteractiveEyes from './InteractiveEyes';
+import { db } from '../utils/db';
 
 interface LoginProps {
   employees: Employee[];
@@ -110,7 +111,7 @@ export default function Login({ employees, onLogin, theme }: LoginProps) {
         details,
         type,
       };
-      localStorage.setItem('pe_system_logs', JSON.stringify([newLog, ...logs.slice(0, 199)]));
+      db.saveMiscData('pe_system_logs', [newLog, ...logs.slice(0, 199)]);
     } catch {
       // Ignore log error
     }

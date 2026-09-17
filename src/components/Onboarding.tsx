@@ -485,6 +485,7 @@ export default function Onboarding({ currentUser, onComplete, hasCertifiedBadge,
   const allSteps = [...roleSteps, quizStep];
   const currentStepData = allSteps.find(s => s.id === activeStep) || allSteps[0];
   const StepIcon = currentStepData.icon;
+  const completionPercent = Math.round((activeStep / allSteps.length) * 100);
 
   const roleLabelMap: Record<UserRole, string> = {
     employee: 'همکار / اپراتور کارگاه',
@@ -504,7 +505,7 @@ export default function Onboarding({ currentUser, onComplete, hasCertifiedBadge,
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-base sm:text-lg font-black text-slate-100 dark:text-slate-100 text-slate-800 tracking-tight">آموزش بدو ورود و توانمندسازی پرسنل</h1>
+              <h1 className="text-base sm:text-lg font-black text-slate-100 dark:text-slate-100 text-slate-800 tracking-tight">مرکز آموزش داخلی و توانمندسازی</h1>
               <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/20 shrink-0">
                 نقش شما: {roleLabelMap[role]}
               </span>
@@ -520,6 +521,17 @@ export default function Onboarding({ currentUser, onComplete, hasCertifiedBadge,
           <span>ورود به سامانه کاربری</span>
           <ArrowLeft className="w-4 h-4" />
         </button>
+      </div>
+
+      <div className={`rounded-2xl border p-4 ${theme === 'dark' ? 'bg-slate-900/40 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`} aria-label="پیشرفت آموزش">
+        <div className="mb-2 flex items-center justify-between text-xs">
+          <span className="font-bold text-slate-300 dark:text-slate-300 text-slate-700">مسیر آموزشی نقش {roleLabelMap[role]}</span>
+          <span className="font-black text-teal-400">{completionPercent}٪</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-800/70">
+          <div className="h-full rounded-full bg-gradient-to-l from-teal-500 to-sky-500 transition-all duration-300" style={{ width: `${completionPercent}%` }} />
+        </div>
+        <p className="mt-2 text-[11px] leading-5 text-slate-400">هر بخش را از فهرست انتخاب کنید؛ وضعیت و محتوای موجود حفظ می‌شود و آزمون پایانی در آخر مسیر قرار دارد.</p>
       </div>
 
       {/* Main Row layout with steps navigator */}

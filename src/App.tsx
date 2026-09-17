@@ -45,7 +45,8 @@ import { UploadCloud,
   Save,
   HelpCircle,
   Bell,
-  BellOff
+  BellOff,
+  RefreshCw
 } from 'lucide-react';
 import {  Criterion, JobProfile, Employee, Evaluation } from './types';
 import {  SEED_CRITERIA, SEED_PROFILES, SEED_EMPLOYEES, SEED_EVALUATIONS } from './seedData';
@@ -73,6 +74,7 @@ export default function App() {
   const [cloudDataVersion, setCloudDataVersion] = useState(0);
   const [activeTourStep, setActiveTourStep] = useState<number | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   const sanitizeUser = (user: Employee | null): Employee | null => {
     if (!user) return null;
@@ -105,33 +107,44 @@ export default function App() {
     return null;
   });
 
-  // Verify the server-side HttpOnly session when Pages Functions are available,
-  // then start data synchronization only for an authenticated user.
+  // Restore identity from the HttpOnly server session. Browser storage is never
+  // authoritative for role or permissions in production.
   useEffect(() => {
-    if (!currentUser) {
-      db.stopCloudSync();
-      return;
-    }
     let active = true;
-    const initializeAuthenticatedSession = async () => {
+    const restoreServerSession = async () => {
       try {
         const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
         const isApiResponse = (response.headers.get('Content-Type') || '').includes('application/json');
-        if (isApiResponse && response.status === 401) {
-          if (active) {
+        if (isApiResponse) {
+          const result = await response.json() as { user?: Employee; error?: string };
+          if (!active) return;
+          if (response.ok && result.user) {
+            sessionStorage.setItem('pe_session_user', JSON.stringify(result.user));
+            setCurrentUser(result.user);
+            setCurrentTab(restoreNavigationFor(result.user));
+          } else {
             clearLegacyAdminSessions();
             setCurrentUser(null);
           }
-          return;
         }
       } catch {
         // Offline/Vite demo mode intentionally keeps the local session available.
+      } finally {
+        if (active) setSessionChecked(true);
       }
-      if (active) await db.initializeCloudSync();
     };
-    initializeAuthenticatedSession().catch(() => {});
+    restoreServerSession().catch(() => { if (active) setSessionChecked(true); });
     return () => { active = false; };
-  }, [currentUser?.id]);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionChecked || !currentUser) {
+      db.stopCloudSync();
+      return;
+    }
+    db.initializeCloudSync().catch(() => {});
+    return () => db.stopCloudSync();
+  }, [sessionChecked, currentUser?.id]);
 
   useEffect(() => {
     const handleCloudStatus = (event: Event) => {
@@ -139,7 +152,15 @@ export default function App() {
       if (detail?.status) setCloudStatus(detail);
     };
     const handleAuthExpired = () => {
-      db.stopCloudSync();
+      if (import.meta.env.DEV) db.stopCloudSync();
+      else {
+        db.clearAuthorizedCache();
+        setEmployees([]);
+        setEvaluations([]);
+        setArchivedEvaluations([]);
+        setProfiles([]);
+        setCriteria([]);
+      }
       clearLegacyAdminSessions();
       setCurrentUser(null);
       setCurrentTab('dashboard');
@@ -285,6 +306,12 @@ export default function App() {
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; visible: boolean } | null>(null);
 
+  const navigationKeyFor = (user: Employee) => `pe_last_tab_${user.id}_${user.username.toLowerCase()}`;
+  const restoreNavigationFor = (user: Employee): string => {
+    const saved = localStorage.getItem(navigationKeyFor(user));
+    return saved && canAccessTab(user, saved) ? saved : defaultTabFor(user);
+  };
+
   const [criteria, setCriteria] = useState<Criterion[]>(() => db.getCriteria());
   const [profiles, setProfiles] = useState<JobProfile[]>(() => db.getProfiles());
   const [employees, setEmployees] = useState<Employee[]>(() => db.getEmployees());
@@ -381,6 +408,7 @@ export default function App() {
       sessionStorage.setItem('pe_admin_session_logged_at', new Date().toISOString());
     }
     setCurrentUser(sanitized);
+    setSessionChecked(true);
     
     // Check if onboarding or tour is needed for this role
     const hasSeenRoleTour = localStorage.getItem('pe_tour_completed_' + sanitized.id + '_' + sanitized.role);
@@ -389,25 +417,25 @@ export default function App() {
     if (!hasOnboarded) {
       setCurrentTab('onboarding');
     } else if (!hasSeenRoleTour) {
-      if (sanitized.role === 'employee') {
-        setCurrentTab('my-evaluation');
-      } else {
-        setCurrentTab('dashboard');
-      }
+      setCurrentTab(restoreNavigationFor(sanitized));
       setTimeout(() => {
         handleStartTour();
       }, 400);
     } else {
-      if (sanitized.role === 'employee') {
-        setCurrentTab('my-evaluation');
-      } else {
-        setCurrentTab('dashboard');
-      }
+      setCurrentTab(restoreNavigationFor(sanitized));
     }
   };
 
   const handleLogout = () => {
-    db.stopCloudSync();
+    if (import.meta.env.DEV) db.stopCloudSync();
+    else {
+      db.clearAuthorizedCache();
+      setEmployees([]);
+      setEvaluations([]);
+      setArchivedEvaluations([]);
+      setProfiles([]);
+      setCriteria([]);
+    }
     fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'same-origin',
@@ -428,9 +456,10 @@ export default function App() {
   }, []);
 
   const handleForceCloudSync = async () => {
+    if (cloudStatus.status === 'syncing') return;
     setContextMenu(null);
-    const success = await db.syncToCloudNow();
-    if (!success) alert('ذخیره ابری انجام نشد. وضعیت اتصال و binding پایگاه CHALAK_DB را بررسی کنید.');
+    const success = await db.refreshFromCloudNow();
+    if (!success) alert('دریافت آخرین داده‌های ابری انجام نشد. تغییر محلی حذف نشده است؛ اتصال را بررسی و دوباره تلاش کنید.');
   };
 
   const handleToggleTheme = () => {
@@ -625,40 +654,47 @@ export default function App() {
     }
   };
 
-  const handleDeleteEmployee = async (id: string) => {
+  const handleDeleteEmployee = async (id: string): Promise<boolean> => {
     const target = employees.find(e => e.id === id);
-    if (!target) return;
+    if (!target) return false;
     // Protect primary root admin account only
     if (target.username === 'admin' && target.code === 'ADMIN-001') {
       alert('حساب مدیر ارشد سیستم (ADMIN-001) محافظت‌شده بوده و قابل حذف نمی‌باشد.');
-      return;
+      return false;
     }
     if (!(await removeCloudCredential(target.username))) {
       alert('حذف اطلاعات ورود کاربر از سرور ناموفق بود؛ عملیات حذف متوقف شد.');
-      return;
+      return false;
     }
     const success = db.deleteEmployee(id);
     if (success) {
+      if (activeEvalId && evaluations.some(item => item.id === activeEvalId && item.empId === id)) {
+        setActiveEvalId(null);
+      }
       setEmployees(db.getEmployees());
       setEvaluations(db.getEvaluations());
       notifyDataSaved();
+      return true;
     }
+    return false;
   };
 
-  const handleBulkDeleteEmployees = async (ids: string[]) => {
-    if (!ids || ids.length === 0) return;
+  const handleBulkDeleteEmployees = async (ids: string[]): Promise<boolean> => {
+    if (!ids || ids.length === 0) return false;
     const targets = employees.filter(employee => ids.includes(employee.id) && employee.username !== 'admin');
     const credentialsRemoved = await Promise.all(targets.map(employee => removeCloudCredential(employee.username)));
     if (credentialsRemoved.some(success => !success)) {
       alert('حذف بخشی از اطلاعات ورود از سرور ناموفق بود؛ عملیات گروهی متوقف شد.');
-      return;
+      return false;
     }
     const res = db.deleteEmployeesBatch(ids);
     if (res.success) {
       setEmployees(db.getEmployees());
       setEvaluations(db.getEvaluations());
       notifyDataSaved();
+      return true;
     }
+    return false;
   };
 
   const handleBulkUpdateEmployees = (updatedList: Employee[]) => {
@@ -804,6 +840,16 @@ export default function App() {
     }
   }, [currentUser, currentTab]);
 
+  useEffect(() => {
+    if (sessionChecked && currentUser && canAccessTab(currentUser, currentTab)) {
+      localStorage.setItem(navigationKeyFor(currentUser), currentTab);
+    }
+  }, [sessionChecked, currentUser?.id, currentUser?.username, currentTab]);
+
+  if (!sessionChecked) {
+    return <div className="min-h-screen grid place-items-center bg-slate-950 text-slate-300" dir="rtl">در حال بررسی نشست امن…</div>;
+  }
+
   if (!currentUser) {
     return <Login employees={employees} onLogin={handleLogin} theme={theme} />;
   }
@@ -826,6 +872,7 @@ export default function App() {
           <button
             type="button"
             onClick={handleForceCloudSync}
+            disabled={cloudStatus.status === 'syncing'}
             title={cloudStatus.message}
             className={`p-1.5 rounded-xl border transition-colors ${
               cloudStatus.status === 'synced' ? 'text-sky-400 bg-sky-500/10 border-sky-500/20' :
@@ -834,7 +881,7 @@ export default function App() {
             }`}
             aria-label={cloudStatus.message}
           >
-            <UploadCloud className={`w-4 h-4 ${cloudStatus.status === 'syncing' ? 'animate-pulse' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${cloudStatus.status === 'syncing' ? 'animate-spin' : ''}`} />
           </button>
           <button 
             type="button" 
@@ -880,6 +927,7 @@ export default function App() {
             <button
               type="button"
               onClick={handleForceCloudSync}
+              disabled={cloudStatus.status === 'syncing'}
               title={`${cloudStatus.message}${cloudStatus.revision !== undefined ? ` — نسخه ${cloudStatus.revision}` : ''}`}
               className={`text-[10px] font-bold flex items-center gap-1 px-2.5 py-1 rounded-full border transition-colors ${
                 cloudStatus.status === 'synced' ? 'text-sky-400 bg-sky-500/10 border-sky-500/20' :
@@ -888,9 +936,9 @@ export default function App() {
                 'text-rose-400 bg-rose-500/10 border-rose-500/20'
               }`}
             >
-              <UploadCloud className={`w-3 h-3 ${cloudStatus.status === 'syncing' ? 'animate-pulse' : ''}`} />
-              {cloudStatus.status === 'synced' ? 'ذخیره‌شده در ابر' :
-               cloudStatus.status === 'syncing' ? 'در حال همگام‌سازی' :
+              <RefreshCw className={`w-3 h-3 ${cloudStatus.status === 'syncing' ? 'animate-spin' : ''}`} />
+              {cloudStatus.status === 'synced' ? 'تازه‌سازی / همگام' :
+               cloudStatus.status === 'syncing' ? 'در حال تازه‌سازی' :
                cloudStatus.status === 'error' ? 'خطای فضای ابری' : 'ابر غیرفعال'}
             </button>
             {saveIndicator && <span className="text-[10px] text-emerald-400">ذخیره محلی ✓</span>}

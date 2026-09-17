@@ -71,6 +71,7 @@ import PerformanceArchiveVault from './PerformanceArchiveVault';
 import ProductionCycleTimeCalculator from './ProductionCycleTimeCalculator';
 import { getArchivedEvaluations, saveArchivedEvaluations } from '../utils/archiveManager';
 import { db } from '../utils/db';
+import { generateSecurePassword } from '../utils/password';
 import { 
   ManualAccessPolicy, 
   getManualAccessPolicy, 
@@ -561,8 +562,7 @@ export default function ManagementCenter({
 
   const handleOpenEditPassword = (emp: Employee) => {
     setEditingPasswordEmp(emp);
-    const existing = userPasswords[emp.username.toLowerCase()] || '';
-    setCustomPasswordInput(existing);
+    setCustomPasswordInput('');
   };
 
   const handleSaveCustomPassword = async (e: React.FormEvent) => {
@@ -589,11 +589,11 @@ export default function ManagementCenter({
       return;
     }
 
-    const updated = {
-      ...userPasswords,
-      [editingPasswordEmp.username.toLowerCase()]: cleanPass
-    };
-    setUserPasswords(updated);
+    setUserPasswords(previous => {
+      const next = { ...previous };
+      delete next[editingPasswordEmp.username.toLowerCase()];
+      return next;
+    });
     setCustomCredentialUsers(previous => new Set(previous).add(editingPasswordEmp.username.toLowerCase()));
     addLog(
       'تغییر کلمه عبور کاربر',
@@ -606,8 +606,7 @@ export default function ManagementCenter({
   };
 
   const handleGenerateRandomPassword = async (emp: Employee) => {
-    const bytes = crypto.getRandomValues(new Uint32Array(2));
-    const generated = `Chalak#${bytes[0].toString(36)}${bytes[1].toString(36)}`;
+    const generated = generateSecurePassword();
     try {
       await updateCloudCredential({ username: emp.username, password: generated });
     } catch (error) {
@@ -623,13 +622,12 @@ export default function ManagementCenter({
     setCustomCredentialUsers(previous => new Set(previous).add(emp.username.toLowerCase()));
     addLog(
       'تولید رمز تصادفی کاربر',
-      `کلمه عبور جدید تصادفی (${generated}) برای کاربر «${emp.name}» ایجاد و ثبت شد.`,
+      `کلمه عبور تصادفی امن برای کاربر «${emp.name}» ایجاد و ثبت شد.`,
       'info'
     );
-    setCredentialsFeedback({ 
-      type: 'success', 
-      message: `رمز عبور جدید «${generated}» برای ${emp.name} تنظیم گردید.` 
-    });
+    setCustomPasswordInput(generated);
+    setShowCustomPassInput(true);
+    setCredentialsFeedback({ type: 'success', message: `کلمه عبور امن برای ${emp.name} ثبت شد؛ مقدار نمایش‌داده‌شده را اکنون تحویل یا کپی کنید.` });
     setTimeout(() => setCredentialsFeedback(null), 5000);
   };
 
@@ -1893,7 +1891,7 @@ export default function ManagementCenter({
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>حداقل ۱۲ کاراکتر ترکیبی</span>
+                    <span>حداقل ۸ کاراکتر</span>
                   </div>
                   <button
                     type="submit"
@@ -2120,6 +2118,22 @@ export default function ManagementCenter({
                     <Dices className="w-4 h-4 text-amber-400" />
                     <span>تولید رمز تصادفی</span>
                   </button>
+                  {customPasswordInput && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(customPasswordInput);
+                          setCredentialsFeedback({ type: 'success', message: 'کلمه عبور در کلیپ‌بورد کپی شد.' });
+                        } catch {
+                          setCredentialsFeedback({ type: 'error', message: 'کپی خودکار ممکن نبود؛ مقدار را به‌صورت دستی کپی کنید.' });
+                        }
+                      }}
+                      className="w-full sm:w-auto bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 font-bold px-3 py-2 rounded-xl text-xs"
+                    >
+                      کپی
+                    </button>
+                  )}
                 </form>
               </div>
             )}
